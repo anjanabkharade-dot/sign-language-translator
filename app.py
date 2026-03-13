@@ -1,48 +1,34 @@
 import streamlit as st
-import numpy as np
+import cv2
+import mediapipe as mp
 from PIL import Image
-import tensorflow.lite as tflite
+import numpy as np
 
-# --- TEAM BUILD HUB UI ---
 st.set_page_config(page_title="Team Build Hub", page_icon="🤟")
-st.title("🤟 AI Sign Language Translator")
-st.subheader("Bridging the Gap with AI for Impact")
+st.title("🤟 AI Sign Language Detector (Fast Version)")
 
-# --- LOAD YOUR AI BRAIN ---
-@st.cache_resource
-def load_files():
-    # Load the model you sent me
-    interpreter = tflite.Interpreter(model_path="model_unquant.tflite")
-    interpreter.allocate_tensors()
-    # Load your 9 labels (Hello, Namaste, etc.)
-    with open("labels.txt", "r") as f:
-        labels = [line.strip().split(' ', 1)[1] for line in f.readlines()]
-    return interpreter, labels
+# MediaPipe Setup
+mp_hands = mp.solutions.hands
+hands = mp_hands.Hands(static_image_mode=True, max_num_hands=1)
+mp_draw = mp.solutions.drawing_utils
 
-interpreter, labels = load_files()
+st.write("Team Build Hub - Accessibility for India")
 
-# --- CAMERA INTERFACE ---
-st.write("### Step 1: Show a gesture to the camera")
-img_file = st.camera_input("Take a photo of your sign")
+img_file = st.camera_input("Take a photo of your hand sign")
 
 if img_file:
-    # Prepare image for your model (224x224)
-    image = Image.open(img_file).convert('RGB').resize((224, 224))
-    img_array = np.array(image, dtype=np.float32)
-    img_array = np.expand_dims(img_array, axis=0)
-    img_array = (img_array / 127.5) - 1.0 
-
-    # Predict
-    input_index = interpreter.get_input_details()[0]['index']
-    output_index = interpreter.get_output_details()[0]['index']
-    interpreter.set_tensor(input_index, img_array)
-    interpreter.invoke()
+    image = Image.open(img_file)
+    img_array = np.array(image)
     
-    prediction = interpreter.get_tensor(output_index)
-    result_index = np.argmax(prediction)
+    # Process with MediaPipe
+    results = hands.process(cv2.cvtColor(img_array, cv2.COLOR_BGR2RGB))
     
-    # --- DISPLAY RESULT ---
-    st.write("---")
-    st.write("### Step 2: Translation")
-    st.success(f"Detected Sign: **{labels[result_index]}**")
-    st.info("Impact: Helping 60M+ people in India communicate better.")
+    if results.multi_hand_landmarks:
+        st.success("✅ Hand Detected!")
+        # Drawing landmarks for "WOW" factor
+        for hand_landmarks in results.multi_hand_landmarks:
+            mp_draw.draw_landmarks(img_array, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+        st.image(img_array, caption="AI Tracking Points")
+        st.info("Impact: Helping bridge the communication gap.")
+    else:
+        st.warning("No hand detected. Please try again with clear lighting!")
